@@ -31,26 +31,34 @@ set(POLY2TRI_SOURCES
 # -------------------------------------------------------------------
 # GEOS — optional dependency
 # -------------------------------------------------------------------
-find_package(PkgConfig QUIET)
-if(PkgConfig_FOUND)
-  pkg_check_modules(GEOS geos)
-endif()
+# Strategy: try vcpkg CMake config first (Windows), then pkg-config / find_path (Linux/macOS)
+find_package(geos CONFIG QUIET)
 
-if(NOT GEOS_FOUND)
-  # Fallback: try find_path/find_library (works with vcpkg)
-  find_path(GEOS_INCLUDE_DIRS geos_c.h)
-  find_library(GEOS_LIBRARIES geos_c)
-  if(GEOS_INCLUDE_DIRS AND GEOS_LIBRARIES)
-    set(GEOS_FOUND TRUE)
-    # Try to extract version from header
-    if(EXISTS "${GEOS_INCLUDE_DIRS}/geos_c.h")
-      file(STRINGS "${GEOS_INCLUDE_DIRS}/geos_c.h" GEOS_VERSION_STR REGEX "#define GEOS_VERSION ")
-      string(REGEX REPLACE ".*\"([^\"]+)\".*" "\\1" GEOS_VERSION "${GEOS_VERSION_STR}")
+if(NOT geos_FOUND)
+  find_package(PkgConfig QUIET)
+  if(PkgConfig_FOUND)
+    pkg_check_modules(GEOS geos)
+  endif()
+
+  if(NOT GEOS_FOUND)
+    # Fallback: try find_path/find_library (works with vcpkg classic)
+    find_path(GEOS_INCLUDE_DIRS geos_c.h)
+    find_library(GEOS_LIBRARIES geos_c)
+    if(GEOS_INCLUDE_DIRS AND GEOS_LIBRARIES)
+      set(GEOS_FOUND TRUE)
+      # Try to extract version from header
+      if(EXISTS "${GEOS_INCLUDE_DIRS}/geos_c.h")
+        file(STRINGS "${GEOS_INCLUDE_DIRS}/geos_c.h" GEOS_VERSION_STR REGEX "#define GEOS_VERSION ")
+        string(REGEX REPLACE ".*\"([^\"]+)\".*" "\\1" GEOS_VERSION "${GEOS_VERSION_STR}")
+      endif()
     endif()
   endif()
 endif()
 
-if(GEOS_FOUND)
+if(geos_FOUND)
+  add_compile_definitions(HAVE_GEOS)
+  message(STATUS "GEOS found via CMake config: ${geos_VERSION}")
+elseif(GEOS_FOUND)
   add_compile_definitions(HAVE_GEOS)
   message(STATUS "GEOS found: ${GEOS_VERSION}")
 else()
@@ -61,6 +69,7 @@ endif()
 # Sources
 # -------------------------------------------------------------------
 file(GLOB_RECURSE SOURCES src/*.cpp)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS src/*.cpp)
 
 add_executable(${TARGET_NAME} ${SOURCES} ${POLY2TRI_SOURCES})
 
@@ -83,6 +92,10 @@ if(GEOS_FOUND)
   endif()
 endif()
 
+if(geos_FOUND)
+  target_link_libraries(${TARGET_NAME} PRIVATE geos::geos_c)
+endif()
+
 # math library — Linux only
 if(UNIX AND NOT APPLE)
   target_link_libraries(${TARGET_NAME} PRIVATE m)
@@ -96,6 +109,10 @@ if(WIN32)
   target_compile_definitions(${TARGET_NAME} PRIVATE _CRT_SECURE_NO_WARNINGS)
   # MSVC: ensure UTF-8 source encoding
   target_compile_options(${TARGET_NAME} PRIVATE /utf-8)
+  # poly2tri throws exceptions — enable C++ exception handling in MSVC
+  if(MSVC)
+    target_compile_options(${TARGET_NAME} PRIVATE /EHsc)
+  endif()
   # Ensure consistent output name (tnavmesh.exe)
   set_target_properties(${TARGET_NAME} PROPERTIES RUNTIME_OUTPUT_NAME tnavmesh)
 endif()

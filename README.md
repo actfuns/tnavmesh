@@ -16,7 +16,7 @@ Converts 2D TMX tile maps into navigation meshes using [Recast](https://github.c
 ## Quick Start
 
 ```bash
-# Build
+# Build (automatically clones third-party dependencies)
 make
 
 # Build with custom cmake args
@@ -29,6 +29,12 @@ cmake --build build
 # Run
 ./build/tnavmesh build -i assets/maps/simple.tmx -o simple.bin
 ./build/tnavmesh path -i assets/maps/simple.tmx --auto
+```
+
+## Run smoke tests
+
+```bash
+bash test/smoke.sh
 ```
 
 ## Usage
@@ -114,6 +120,18 @@ Or with vcpkg classic mode:
 vcpkg install geos --triplet x64-windows
 cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake"
 cmake --build build --config Release
+```
+
+### Build using Makefile (Linux only)
+
+The Makefile handles dependency checks, third-party cloning, and cmake configuration automatically:
+
+```bash
+# Build (checks deps, clones third-party, configures, compiles)
+make
+
+# Clean build
+make rebuild
 ```
 
 ## Coordinate System

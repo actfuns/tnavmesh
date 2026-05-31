@@ -1,0 +1,11 @@
+[submodule "third_party/recastnavigation"]
+	path = third_party/recastnavigation
+	url = https://github.com/recastnavigation/recastnavigation
+	tag = v1.6.0
+	fetchRecurseSubmodules = false
+
+[submodule "third_party/poly2tri"]
+	path = third_party/poly2tri
+	url = https://github.com/jhasse/poly2tri
+	tag = master
+	fetchRecurseSubmodules = false

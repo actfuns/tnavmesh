@@ -46,8 +46,6 @@ static PathResult findPathInternal(dtNavMeshQuery& query,
         result.error = buf;
         return result;
     }
-    std::cout << "  [dbg] startRef=" << startRef
-              << " startNearest=(" << startNearest[0] << ", " << startNearest[1] << ", " << startNearest[2] << ")\n";
 
     status = query.findNearestPoly(endPos, halfExtents, &filter, &endRef, endNearest);
     if (dtStatusFailed(status) || !endRef) {
@@ -57,8 +55,6 @@ static PathResult findPathInternal(dtNavMeshQuery& query,
         result.error = buf;
         return result;
     }
-    std::cout << "  [dbg] endRef=" << endRef
-              << " endNearest=(" << endNearest[0] << ", " << endNearest[1] << ", " << endNearest[2] << ")\n";
 
     const int MAX_POLYS = 256;
     dtPolyRef path[MAX_POLYS];
@@ -69,9 +65,6 @@ static PathResult findPathInternal(dtNavMeshQuery& query,
         result.error = "No path found";
         return result;
     }
-    std::cout << "  [dbg] findPath: " << pathCount << " polys\n";
-    for (int i = 0; i < pathCount; i++)
-        std::cout << "    poly[" << i << "] = " << path[i] << "\n";
 
     const int MAX_STRAIGHT = 256;
     float straightPos[MAX_STRAIGHT * 3];
@@ -85,11 +78,6 @@ static PathResult findPathInternal(dtNavMeshQuery& query,
     if (dtStatusFailed(status) || straightCount == 0) {
         result.error = "No straight path found";
         return result;
-    }
-    std::cout << "  [dbg] findStraightPath: " << straightCount << " waypoints\n";
-    for (int i = 0; i < straightCount; i++) {
-        std::cout << "    wp[" << i << "] pos=(" << straightPos[i*3] << ", " << straightPos[i*3+1] << ", " << straightPos[i*3+2]
-                  << ") flags=" << (int)straightFlags[i] << " ref=" << straightRefs[i] << "\n";
     }
 
     result.found = true;
