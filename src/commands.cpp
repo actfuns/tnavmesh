@@ -127,9 +127,9 @@ static void printBuildHelp() {
               << "  --cell-height <float>      Voxel height (default: cellSize * 0.5)\n"
               << "\n"
               << "Polygon control:\n"
-              << "  --poly-max-verts <n>       Max vertices per polygon (default: 6)\n"
+              << "  --poly-max-verts <n>       Max vertices per polygon (default: 6, max: 6)\n"
               << "  --poly-simplify <float>    Simplification error (default: 2.0)\n"
-              << "  --max-edges <n>            Max edge length in pixels (default: auto)\n"
+              << "  --max-edges <n>            Max edge length in voxels (default: auto)\n"
               << "\n"
               << "Other:\n"
               << "  -v, --verbose              Verbose output\n"
@@ -156,7 +156,14 @@ int cmd_build(int argc, char** argv) {
         else if (a == "--agent-climb" && i+1 < argc) navCfg.walkableClimb = std::atoi(argv[++i]);
         else if (a == "--cell-size" && i+1 < argc) navCfg.cs = std::strtof(argv[++i], nullptr);
         else if (a == "--cell-height" && i+1 < argc) navCfg.ch = std::strtof(argv[++i], nullptr);
-        else if (a == "--poly-max-verts" && i+1 < argc) navCfg.maxVertsPerPoly = std::atoi(argv[++i]);
+        else if (a == "--poly-max-verts" && i+1 < argc) {
+            int v = std::atoi(argv[++i]);
+            if (v > 6) {
+                std::cerr << "Warning: --poly-max-verts limited to 6 (Detour constraint), clamping.\n";
+                v = 6;
+            }
+            navCfg.maxVertsPerPoly = v;
+        }
         else if (a == "--poly-simplify" && i+1 < argc) navCfg.maxSimplificationError = std::strtof(argv[++i], nullptr);
         else if (a == "--max-edges" && i+1 < argc) navCfg.maxEdgeLen = std::atoi(argv[++i]);
         else if (a == "--slope-angle" && i+1 < argc) navCfg.walkableSlopeAngle = std::strtof(argv[++i], nullptr);
@@ -481,9 +488,9 @@ static void printPathHelp() {
               << "  --cell-height <float>      Voxel height (default: cellSize * 0.5)\n"
               << "\n"
               << "Polygon control (TMX mode only):\n"
-              << "  --poly-max-verts <n>       Max vertices per polygon (default: 6)\n"
+              << "  --poly-max-verts <n>       Max vertices per polygon (default: 6, max: 6)\n"
               << "  --poly-simplify <float>    Simplification error (default: 2.0)\n"
-              << "  --max-edges <n>            Max edge length in pixels (default: auto)\n"
+              << "  --max-edges <n>            Max edge length in voxels (default: auto)\n"
               << "\n"
               << "Other:\n"
               << "  -v, --verbose              Verbose output\n"
@@ -542,7 +549,14 @@ int cmd_path(int argc, char** argv) {
         else if (a == "--cell-size" && i+1 < argc) navCfg.cs = std::strtof(argv[++i], nullptr);
         else if (a == "--cell-height" && i+1 < argc) navCfg.ch = std::strtof(argv[++i], nullptr);
         else if (a == "--poly-simplify" && i+1 < argc) navCfg.maxSimplificationError = std::strtof(argv[++i], nullptr);
-        else if (a == "--poly-max-verts" && i+1 < argc) navCfg.maxVertsPerPoly = std::atoi(argv[++i]);
+        else if (a == "--poly-max-verts" && i+1 < argc) {
+            int v = std::atoi(argv[++i]);
+            if (v > 6) {
+                std::cerr << "Warning: --poly-max-verts limited to 6 (Detour constraint), clamping.\n";
+                v = 6;
+            }
+            navCfg.maxVertsPerPoly = v;
+        }
         else if (a == "--max-edges" && i+1 < argc) navCfg.maxEdgeLen = std::atoi(argv[++i]);
         else if (a == "--slope-angle" && i+1 < argc) navCfg.walkableSlopeAngle = std::strtof(argv[++i], nullptr);
         else if (a == "-v" || a == "--verbose") verbose = true;

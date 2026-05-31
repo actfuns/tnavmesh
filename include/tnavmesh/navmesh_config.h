@@ -28,6 +28,7 @@ struct NavmeshConfig {
     int maxVertsPerPoly = 6;
     float detailSampleDist = 6.0f;
     float detailSampleMaxError = 1.0f;
+    Quality quality = Quality::Normal;
 
     void autoCalc(const MapInfo& mapInfo) {
         float tileW = mapInfo.tileWidth;
@@ -40,8 +41,21 @@ struct NavmeshConfig {
         if (walkableClimb <= 0) walkableClimb = static_cast<int>(tileSize * 0.8f);
 
         // Voxel resolution
-        if (cs <= 0) cs = tileSize * 0.15f;
+        if (cs <= 0) {
+            float csFactor;
+            switch (quality) {
+                case Quality::Low:    csFactor = 0.4f;  break;
+                case Quality::High:   csFactor = 0.1f;  break;
+                default:              csFactor = 0.15f; break;
+            }
+            cs = tileSize * csFactor;
+        }
         if (ch <= 0) ch = cs * 0.5f;
+
+        // Convert agent values from pixels to voxels for rcConfig
+        if (walkableRadius > 0) walkableRadius = std::max(1, static_cast<int>(walkableRadius / cs));
+        if (walkableHeight > 0) walkableHeight = std::max(1, static_cast<int>(walkableHeight / cs));
+        if (walkableClimb > 0) walkableClimb = std::max(1, static_cast<int>(walkableClimb / cs));
 
         // Region
         float mapW = static_cast<float>(mapInfo.width) * tileW;
@@ -57,6 +71,10 @@ struct NavmeshConfig {
         if (maxEdgeLen <= 0)
             maxEdgeLen = static_cast<int>(tileSize * 2.0f / cs);
 
+        // Sanity: minimum region area of at least 8 voxels
+        if (minRegionArea < 8) minRegionArea = 8;
+        if (mergeRegionArea < minRegionArea) mergeRegionArea = minRegionArea;
+
         // Sanity: at least 1 voxel for walkableHeight/Radius/Climb
         if (walkableHeight < 1) walkableHeight = 1;
         if (walkableRadius < 1) walkableRadius = 1;
@@ -64,17 +82,13 @@ struct NavmeshConfig {
     }
 
     void applyQuality(Quality q) {
+        quality = q;
         switch (q) {
             case Quality::Low:
-                cs = 1.0f;
-                if (walkableHeight <= 0) walkableHeight = 2;
-                if (walkableRadius <= 0) walkableRadius = 1;
                 if (maxSimplificationError <= 0) maxSimplificationError = 3.0f;
                 break;
             case Quality::High:
-                // Leave cs=0/ch=0 etc. so autoCalc derives them from map size
                 if (maxSimplificationError <= 0 || maxSimplificationError > 1.0f) maxSimplificationError = 1.0f;
-                if (maxVertsPerPoly < 12) maxVertsPerPoly = 12;
                 break;
             case Quality::Normal:
             default:
@@ -93,7 +107,7 @@ struct NavmeshConfig {
         cfg.bmin[1] = 0;
         cfg.bmin[2] = 0;
         cfg.bmax[0] = mapW;
-        cfg.bmax[1] = std::max(2.0f, (float)walkableHeight * ch * 2.0f);  // height enough for walkable check
+        cfg.bmax[1] = std::max(2.0f, (float)walkableHeight * ch * 2.0f);  // voxels * ch = world units, x2 margin
         cfg.bmax[2] = mapH;
         cfg.walkableSlopeAngle = walkableSlopeAngle;
         cfg.walkableHeight = walkableHeight;
