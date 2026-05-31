@@ -758,39 +758,68 @@ int cmd_path(int argc, char** argv) {
         if (result.found && result.waypoints.size() >= 4) {
             std::cout << "Path found: " << (result.waypoints.size()/2)
                       << " waypoints, length=" << result.totalLength << "\n";
-            if (!textOutput.empty()) {
-                std::ofstream ofs(textOutput);
-                if (ofs) {
-                    for (size_t i = 0; i < result.waypoints.size()/2; i++)
-                        ofs << result.waypoints[i*2] << " " << result.waypoints[i*2+1] << "\n";
-                    std::cout << "Waypoints written to " << textOutput << "\n";
-                }
-            }
-
-            // Output in requested format
-            if (format == "json") {
-                std::ofstream ofs(outputSvg);
-                if (ofs) {
-                    writeJSONWaypoints(result.waypoints, ofs);
-                    std::cout << "JSON written to " << outputSvg << "\n";
-                }
-            } else if (format == "text") {
-                std::ofstream ofs(outputSvg);
-                if (ofs) {
-                    for (size_t i = 0; i < result.waypoints.size()/2; i++)
-                        ofs << result.waypoints[i*2] << " " << result.waypoints[i*2+1] << "\n";
-                    std::cout << "Waypoints written to " << outputSvg << "\n";
-                }
-            } else {
-                if (verbose) {
-                    std::cout << "Waypoints:\n";
-                    for (size_t i = 0; i < result.waypoints.size()/2; i++)
-                        std::cout << "  " << result.waypoints[i*2] << " " << result.waypoints[i*2+1] << "\n";
-                }
-            }
         } else {
             std::string reason = result.error.empty() ? "degenerate path (start/end coincide)" : result.error;
             std::cout << "Path not found: " << reason << "\n";
+        }
+
+        if (!textOutput.empty() && !result.waypoints.empty()) {
+            std::ofstream ofs(textOutput);
+            if (ofs) {
+                for (size_t i = 0; i < result.waypoints.size()/2; i++)
+                    ofs << result.waypoints[i*2] << " " << result.waypoints[i*2+1] << "\n";
+                std::cout << "Waypoints written to " << textOutput << "\n";
+            }
+        }
+
+        // Output in requested format (always, even if path failed)
+        if (format == "json") {
+            std::ofstream ofs(outputSvg);
+            if (ofs) {
+                writeJSONWaypoints(result.waypoints, ofs);
+                std::cout << "JSON written to " << outputSvg << "\n";
+            }
+        } else if (format == "text") {
+            std::ofstream ofs(outputSvg);
+            if (ofs) {
+                for (size_t i = 0; i < result.waypoints.size()/2; i++)
+                    ofs << result.waypoints[i*2] << " " << result.waypoints[i*2+1] << "\n";
+                std::cout << "Waypoints written to " << outputSvg << "\n";
+            }
+        } else {
+            // SVG output — construct a simple mapInfo from waypoints bounds (or start/end if no path)
+            float minX, maxX, minY, maxY;
+            if (!result.waypoints.empty()) {
+                minX = maxX = result.waypoints[0];
+                minY = maxY = result.waypoints[1];
+                for (size_t i = 0; i < result.waypoints.size() / 2; i++) {
+                    if (result.waypoints[i*2] < minX) minX = result.waypoints[i*2];
+                    if (result.waypoints[i*2] > maxX) maxX = result.waypoints[i*2];
+                    if (result.waypoints[i*2+1] < minY) minY = result.waypoints[i*2+1];
+                    if (result.waypoints[i*2+1] > maxY) maxY = result.waypoints[i*2+1];
+                }
+            } else {
+                minX = std::min(startX, endX);
+                maxX = std::max(startX, endX);
+                minY = std::min(startY, endY);
+                maxY = std::max(startY, endY);
+            }
+            float pad = std::max(20.0f, (maxX - minX + maxY - minY) * 0.1f);
+            MapInfo rtMap;
+            rtMap.width = 1;
+            rtMap.height = 1;
+            rtMap.tileWidth = maxX - minX + pad * 2;
+            rtMap.tileHeight = maxY - minY + pad * 2;
+
+            SvgOptions rtOpt;
+            rtOpt.showGrid = false;
+            rtOpt.showObstacles = false;
+            rtOpt.showMerged = false;
+            rtOpt.showNavmesh = false;
+            rtOpt.showPath = true;
+
+            writeSVG(outputSvg, rtMap, {}, {}, nullptr, rtOpt, result.waypoints);
+            std::cout << "SVG written to " << outputSvg << "\n";
         }
 
         std::cout << "=== Done ===\n";

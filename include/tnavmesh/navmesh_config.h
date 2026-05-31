@@ -76,7 +76,6 @@ struct NavmeshConfig {
                 if (maxSimplificationError <= 0 || maxSimplificationError > 1.0f) maxSimplificationError = 1.0f;
                 if (maxVertsPerPoly < 12) maxVertsPerPoly = 12;
                 break;
-                break;
             case Quality::Normal:
             default:
                 break; // use as-is or let autoCalc fill

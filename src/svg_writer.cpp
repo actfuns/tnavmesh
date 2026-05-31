@@ -94,7 +94,7 @@ void writeSVG(const std::string& path,
                 cy /= (obs.points.size() / 2);
                 char buf[128];
                 std::snprintf(buf, sizeof(buf),
-                    "<text x=\"%.1f\" y=\"%.1f\" font-family=\"monospace\" font-size=\"10\" fill=\"#a00\">%d</text>\n",
+                    "<text x=\"%.1f\" y=\"%.1f\" font-family=\"monospace\" font-size=\"13\" font-weight=\"bold\" fill=\"#600\">%d</text>\n",
                     cx, cy, obs.id);
                 svg += buf;
             } else {

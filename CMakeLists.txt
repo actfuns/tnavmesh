@@ -93,7 +93,7 @@ if(GEOS_FOUND)
 endif()
 
 if(geos_FOUND)
-  target_link_libraries(${TARGET_NAME} PRIVATE geos::geos_c)
+  target_link_libraries(${TARGET_NAME} PRIVATE GEOS::geos_c)
 endif()
 
 # math library — Linux only

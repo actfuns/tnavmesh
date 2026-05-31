@@ -4,6 +4,10 @@ on:
   push:
     tags: ["v*"]
 
+env:
+  RECAST_TAG: v1.6.0
+  POLY2TRI_TAG: master
+
 jobs:
   release:
     strategy:
@@ -14,19 +18,19 @@ jobs:
           - os: ubuntu-latest
             geos-install: sudo apt-get update -qq && sudo apt-get install -y -qq libgeos-dev
             cmake-args: -DCMAKE_BUILD_TYPE=Release
-            asset-name: tnavmesh-linux-x86_64
+            asset-base: tnavmesh-linux
             binary-suffix: ""
             binary-dir: build
           - os: windows-latest
             geos-install: vcpkg install geos --triplet x64-windows
             cmake-args: -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows
-            asset-name: tnavmesh-windows
+            asset-base: tnavmesh-windows
             binary-suffix: .exe
             binary-dir: build/Release
           - os: macos-latest
             geos-install: brew install geos
             cmake-args: -DCMAKE_BUILD_TYPE=Release
-            asset-name: tnavmesh-macos-x86_64
+            asset-base: tnavmesh-macos
             binary-suffix: ""
             binary-dir: build
 
@@ -37,6 +41,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0
+
+      - name: Pin submodule tags
+        shell: bash
+        run: |
+          git submodule update --init --recursive
+          cd third_party/recastnavigation && git fetch --tags --depth 1 && git checkout ${{ env.RECAST_TAG }} && cd ../..
+          cd third_party/poly2tri && git fetch --tags --depth 1 && git checkout ${{ env.POLY2TRI_TAG }} && cd ../..
 
       - name: Get arch
         id: arch
@@ -55,20 +67,29 @@ jobs:
       - name: Build
         run: cmake --build build --config Release
 
+      - name: Quick smoke test
+        shell: bash
+        run: |
+          BIN="${{ matrix.binary-dir }}/tnavmesh${{ matrix.binary-suffix }}"
+          test -f "$BIN" || { echo "Binary not found: $BIN"; exit 1; }
+          "$BIN" --version
+          "$BIN" --help
+
       - name: Package
         shell: bash
         run: |
+          ASET="${{ matrix.asset-base }}-${{ steps.arch.outputs.value }}"
           mkdir -p package
           cp LICENSE README.md package/ 2>/dev/null || true
           cp "${{ matrix.binary-dir }}/tnavmesh${{ matrix.binary-suffix }}" package/
           cd package
-          zip -r ../tnavmesh-${{ matrix.asset-name }}-${{ steps.arch.outputs.value }}.zip .
+          zip -r ../tnavmesh-${ASET}.zip .
 
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: tnavmesh-${{ matrix.asset-name }}-${{ steps.arch.outputs.value }}
-          path: tnavmesh-${{ matrix.asset-name }}-${{ steps.arch.outputs.value }}.zip
+          name: tnavmesh-${{ matrix.asset-base }}-${{ steps.arch.outputs.value }}
+          path: tnavmesh-${{ matrix.asset-base }}-${{ steps.arch.outputs.value }}.zip
 
   create-release:
     needs: release
