@@ -1,0 +1,45 @@
+# Build outputs
+build/
+cmake-build-*/
+out/
+
+# Third-party dependencies
+third_party/
+
+# Generated files
+*.svg
+*.bin
+out/
+
+# Path output files
+test_path.svg
+path.svg
+debug.svg
+*_inspect*.svg
+*_debug*.svg
+
+# Release artifacts
+*.zip
+*.tar.gz
+
+# Go binaries
+cmd/*/pathcmp
+cmd/*/pathcmp.exe
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Compiled binaries at root (not from our build dir)
+tnavmesh
+tnavmesh.exe
+
+# ... but NOT the include/tnavmesh/ directory
+!include/tnavmesh/

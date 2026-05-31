@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="10" height="10" tilewidth="32" tileheight="32" infinite="0" nextlayerid="2" nextobjectid="1">
+ <objectgroup id="1" name="obstacle">
+  <!-- star -->
+  <object id="1" x="160" y="160">
+   <polygon points="0,-80 18.8,-24.4 80,-24.4 30,10 50,80 0,40 -50,80 -30,10 -80,-24.4 -18.8,-24.4"/>
+  </object>
+  <!-- rectangle overlapping star's top-left -->
+  <object id="2" x="96" y="96" width="80" height="64"/>
+  <!-- rectangle overlapping star's bottom-right -->
+  <object id="3" x="192" y="192" width="80" height="64"/>
+ </objectgroup>
+</map>
