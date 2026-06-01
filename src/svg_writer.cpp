@@ -138,7 +138,7 @@ void writeSVG(const std::string& path,
                 if (vi == RC_MESH_NULL_IDX) break;
                 float rx = verts[vi * 3 + 0] * mesh->cs + mesh->bmin[0];
                 float ry = verts[vi * 3 + 2] * mesh->cs + mesh->bmin[2];
-                float sy = mapH - ry;
+                float sy = options.tmxCoords ? ry : (mapH - ry);
                 char buf[32];
                 std::snprintf(buf, sizeof(buf), "%.1f,%.1f", rx, sy);
                 if (j > 0) svg += " ";

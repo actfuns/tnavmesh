@@ -25,6 +25,74 @@ static void writeWaypointsText(const std::vector<float>& pts, std::ostream& os) 
         os << pts[i*2] << " " << pts[i*2+1] << "\n";
 }
 
+// Build a temporary rcPolyMesh from dtNavMesh tiles for SVG rendering.
+// Caller must free the returned mesh with rcFreePolyMesh.
+static rcPolyMesh* detourToPolyMesh(const dtNavMesh* navMesh, float mapHeight) {
+    int totalVerts = 0, totalPolys = 0;
+    float bmin[3] = {1e30f, 1e30f, 1e30f};
+    float bmax[3] = {-1e30f, -1e30f, -1e30f};
+
+    const dtNavMesh* cnm = navMesh;
+    for (int i = 0; i < cnm->getMaxTiles(); i++) {
+        const dtMeshTile* tile = cnm->getTile(i);
+        if (!tile || !tile->header) continue;
+        totalVerts += tile->header->vertCount;
+        totalPolys += tile->header->polyCount;
+        for (int j = 0; j < 3; j++) {
+            if (tile->header->bmin[j] < bmin[j]) bmin[j] = tile->header->bmin[j];
+            if (tile->header->bmax[j] > bmax[j]) bmax[j] = tile->header->bmax[j];
+        }
+    }
+
+    if (totalVerts == 0 || totalPolys == 0) return nullptr;
+
+    rcPolyMesh* mesh = (rcPolyMesh*)rcAlloc(sizeof(rcPolyMesh), RC_ALLOC_PERM);
+    if (!mesh) return nullptr;
+    memset(mesh, 0, sizeof(rcPolyMesh));
+
+    mesh->nverts = totalVerts;
+    mesh->npolys = totalPolys;
+    mesh->maxpolys = totalPolys;
+    mesh->nvp = 6;
+    mesh->cs = 1.0f;
+    mesh->ch = 1.0f;
+
+    // Store bounds in TMX y-down coords
+    mesh->bmin[0] = bmin[0];
+    mesh->bmin[1] = 0;
+    mesh->bmin[2] = mapHeight - bmax[2];
+    mesh->bmax[0] = bmax[0];
+    mesh->bmax[1] = 0;
+    mesh->bmax[2] = mapHeight - bmin[2];
+
+    mesh->verts = (unsigned short*)rcAlloc(sizeof(unsigned short) * totalVerts * 3, RC_ALLOC_PERM);
+    mesh->polys = (unsigned short*)rcAlloc(sizeof(unsigned short) * totalPolys * mesh->nvp * 2, RC_ALLOC_PERM);
+    if (!mesh->verts || !mesh->polys) { rcFreePolyMesh(mesh); return nullptr; }
+
+    int vi = 0, pi = 0;
+    for (int ti = 0; ti < cnm->getMaxTiles(); ti++) {
+        const dtMeshTile* tile = cnm->getTile(ti);
+        if (!tile || !tile->header) continue;
+        int tileVerts = tile->header->vertCount;
+        for (int j = 0; j < tileVerts; j++) {
+            mesh->verts[vi*3]     = (unsigned short)(tile->verts[j*3] - bmin[0]);
+            mesh->verts[vi*3 + 1] = 0;
+            mesh->verts[vi*3 + 2] = (unsigned short)((mapHeight - tile->verts[j*3 + 2]) - mesh->bmin[2]);
+            vi++;
+        }
+        int vertBase = vi - tileVerts;
+        for (int j = 0; j < tile->header->polyCount; j++) {
+            int vc = tile->polys[j].vertCount;
+            for (int k = 0; k < vc && k < mesh->nvp; k++)
+                mesh->polys[pi * mesh->nvp * 2 + k] = tile->polys[j].verts[k] + vertBase;
+            for (int k = vc; k < mesh->nvp; k++)
+                mesh->polys[pi * mesh->nvp * 2 + k] = RC_MESH_NULL_IDX;
+            pi++;
+        }
+    }
+    return mesh;
+}
+
 // =============================================================
 // Help text
 // =============================================================
@@ -507,7 +575,8 @@ static int queryPath(int argc, char** argv) {
 
     // ---- SVG output ----
     else if (format == "svg") {
-        // Compute bounds and shift waypoints to origin
+        rcPolyMesh* qmesh = detourToPolyMesh(navMesh, mapHeight);
+
         std::vector<float> svgPts = result.waypoints;
         float minX = svgPts[0], maxX = svgPts[0], minY = svgPts[1], maxY = svgPts[1];
         for (size_t i = 0; i < svgPts.size()/2; i++) {
@@ -517,10 +586,23 @@ static int queryPath(int argc, char** argv) {
             if (svgPts[i*2+1] > maxY) maxY = svgPts[i*2+1];
         }
 
+        if (qmesh) {
+            if (qmesh->bmin[0] < minX) minX = qmesh->bmin[0];
+            if (qmesh->bmax[0] > maxX) maxX = qmesh->bmax[0];
+            if (qmesh->bmin[2] < minY) minY = qmesh->bmin[2];
+            if (qmesh->bmax[2] > maxY) maxY = qmesh->bmax[2];
+        }
+
         float pad = std::max(20.0f, (maxX - minX + maxY - minY) * 0.1f);
         for (size_t i = 0; i < svgPts.size(); i += 2) {
             svgPts[i]   -= minX - pad;
             svgPts[i+1] -= minY - pad;
+        }
+        if (qmesh) {
+            qmesh->bmin[0] -= minX - pad;
+            qmesh->bmin[2] -= minY - pad;
+            qmesh->bmax[0] -= minX - pad;
+            qmesh->bmax[2] -= minY - pad;
         }
 
         MapInfo rtMap;
@@ -533,8 +615,19 @@ static int queryPath(int argc, char** argv) {
         rtOpt.svgWidth  = 1200;
         rtOpt.svgHeight = 1200;
         rtOpt.showPath = true;
+        rtOpt.showNavmesh = (qmesh != nullptr);
+        rtOpt.showAnnotations = true;
+        rtOpt.tmxCoords = true;
 
-        writeSVG(outputPath.empty() ? "path.svg" : outputPath, rtMap, {}, {}, nullptr, rtOpt, svgPts);
+        // Just annotate start and end with original TMX coords
+        std::vector<float> annots;
+        annots.push_back(svgPts[0]);
+        annots.push_back(svgPts[1]);
+        annots.push_back(svgPts[svgPts.size()-2]);
+        annots.push_back(svgPts[svgPts.size()-1]);
+
+        writeSVG(outputPath.empty() ? "path.svg" : outputPath, rtMap, {}, {}, qmesh, rtOpt, svgPts, {}, annots);
+        rcFreePolyMesh(qmesh);
         std::cout << "Output: " << (outputPath.empty() ? "path.svg" : outputPath) << " (svg)\n";
     }
 
@@ -889,8 +982,11 @@ int cmd_query(int argc, char** argv) {
 // =============================================================
 
 static void printRenderHelp() {
-    std::cout << "Usage: tnavmesh render -i <input> -o <output.svg> [options]\n"
-              << "       tnavmesh render --points \"<x,y x,y ...>\" -o <output.svg>\n"
+    std::cout << "Usage: tnavmesh render -n <navmesh.bin> -i <input> -o <output.svg> [options]\n"
+              << "       tnavmesh render -n <navmesh.bin> --points \"<x,y x,y ...>\" -o <output.svg>\n"
+              << "\n"
+              << "Required:\n"
+              << "  -n, --navmesh <file>       Pre-built navmesh (.bin)\n"
               << "\n"
               << "Input (mutually exclusive):\n"
               << "  -i, --input <file>         Read waypoints from txt/json file\n"
@@ -903,7 +999,7 @@ static void printRenderHelp() {
               << "Visualization:\n"
               << "  --visual <level>            simple | full | debug (default: full)\n"
               << "    simple   Path line only\n"
-              << "    full     Path + start/end markers\n"
+              << "    full     Path + start/end markers + navmesh\n"
               << "    debug    Extra annotations\n"
               << "\n"
               << "Other:\n"
@@ -969,6 +1065,7 @@ int cmd_render(int argc, char** argv) {
     std::string inputPath;
     std::string pointsStr;
     std::string outputPath = "render.svg";
+    std::string navPath;
     std::string format = "svg";
     std::string visual = "full";
     bool verbose = false;
@@ -978,6 +1075,7 @@ int cmd_render(int argc, char** argv) {
         std::string a = argv[i];
         if ((a == "-i" || a == "--input") && i+1 < argc) { inputPath = argv[++i]; hasInput = true; }
         else if (a == "--points" && i+1 < argc) { pointsStr = argv[++i]; hasPoints = true; }
+        else if ((a == "-n" || a == "--navmesh") && i+1 < argc) navPath = argv[++i];
         else if ((a == "-o" || a == "--output") && i+1 < argc) outputPath = argv[++i];
         else if (a == "--format" && i+1 < argc) format = argv[++i];
         else if (a == "--visual" && i+1 < argc) visual = argv[++i];
@@ -1011,11 +1109,34 @@ int cmd_render(int argc, char** argv) {
         }
     }
 
+    if (navPath.empty()) {
+        std::cerr << "Error: --navmesh is required.\n";
+        printRenderHelp();
+        return 2;
+    }
+
     std::cout << "=== tnavmesh render ===\n"
               << "Points: " << (pts.size()/2) << "\n"
+              << "NavMesh: " << navPath << "\n"
               << "Output: " << outputPath << "\n";
 
-    // Calculate map bounds
+    // Load navmesh
+    float mapHeight = 0;
+    dtNavMesh* navMesh = nullptr;
+    rcPolyMesh* qmesh = nullptr;
+    {
+        navMesh = loadDetourNavMesh(navPath.c_str());
+        if (!navMesh) {
+            std::cerr << "Error: failed to load navmesh from " << navPath << "\n";
+            return 3;
+        }
+        const dtNavMesh* cnm = navMesh;
+        const dtMeshTile* tile = cnm->getTile(0);
+        if (tile && tile->header) mapHeight = tile->header->bmax[2];
+        qmesh = detourToPolyMesh(navMesh, mapHeight);
+    }
+
+    // Calculate map bounds from both waypoints and navmesh
     float minX = pts[0], maxX = pts[0], minY = pts[1], maxY = pts[1];
     for (size_t i = 0; i < pts.size()/2; i++) {
         if (pts[i*2] < minX) minX = pts[i*2];
@@ -1023,12 +1144,27 @@ int cmd_render(int argc, char** argv) {
         if (pts[i*2+1] < minY) minY = pts[i*2+1];
         if (pts[i*2+1] > maxY) maxY = pts[i*2+1];
     }
+    if (qmesh) {
+        if (qmesh->bmin[0] < minX) minX = qmesh->bmin[0];
+        if (qmesh->bmax[0] > maxX) maxX = qmesh->bmax[0];
+        if (qmesh->bmin[2] < minY) minY = qmesh->bmin[2];
+        if (qmesh->bmax[2] > maxY) maxY = qmesh->bmax[2];
+    }
 
-    // Shift points to origin so they fit in viewBox
     float pad = std::max(20.0f, (maxX - minX + maxY - minY) * 0.1f);
+
+    // Shift waypoints to origin
     for (size_t i = 0; i < pts.size(); i += 2) {
         pts[i]   -= minX - pad;
         pts[i+1] -= minY - pad;
+    }
+
+    // Shift navmesh bounds to match
+    if (qmesh) {
+        qmesh->bmin[0] -= minX - pad;
+        qmesh->bmin[2] -= minY - pad;
+        qmesh->bmax[0] -= minX - pad;
+        qmesh->bmax[2] -= minY - pad;
     }
 
     MapInfo mapInfo;
@@ -1041,15 +1177,18 @@ int cmd_render(int argc, char** argv) {
     opt.svgWidth = 1200;
     opt.svgHeight = 1200;
     opt.showPath = true;
+    opt.showNavmesh = (qmesh != nullptr);
+    opt.tmxCoords = true;
 
     if (visual == "simple") {
-        // Path line only (default settings already minimal)
+        // Path line only
     } else if (visual == "debug") {
         opt.showAnnotations = true;
     }
-    // "full" = path + start/end (default in svg_writer)
 
-    writeSVG(outputPath, mapInfo, {}, {}, nullptr, opt, pts);
+    writeSVG(outputPath, mapInfo, {}, {}, qmesh, opt, pts);
+    rcFreePolyMesh(qmesh);
+    dtFreeNavMesh(navMesh);
     std::cout << "=== Done ===\n";
     return 0;
 }
