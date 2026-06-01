@@ -17,19 +17,19 @@ jobs:
         include:
           - os: ubuntu-latest
             geos-install: sudo apt-get update -qq && sudo apt-get install -y -qq libgeos-dev
-            cmake-args: -DCMAKE_BUILD_TYPE=Release
+            cmake-args: -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5
             asset-base: tnavmesh-linux
             binary-suffix: ""
             binary-dir: build
           - os: windows-latest
-            geos-install: vcpkg install geos --triplet x64-windows
+            geos-install: vcpkg install --triplet x64-windows
             cmake-args: -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows
             asset-base: tnavmesh-windows
             binary-suffix: .exe
             binary-dir: build/Release
           - os: macos-latest
             geos-install: brew install geos
-            cmake-args: -DCMAKE_BUILD_TYPE=Release
+            cmake-args: -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5
             asset-base: tnavmesh-macos
             binary-suffix: ""
             binary-dir: build

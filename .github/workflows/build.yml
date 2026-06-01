@@ -19,17 +19,17 @@ jobs:
         include:
           - os: ubuntu-latest
             geos-install: sudo apt-get update -qq && sudo apt-get install -y -qq libgeos-dev
-            cmake-args: -DCMAKE_BUILD_TYPE=Release
+            cmake-args: -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5
             binary-suffix: ""
             binary-dir: build
           - os: windows-latest
-            geos-install: vcpkg install geos --triplet x64-windows
+            geos-install: vcpkg install --triplet x64-windows
             cmake-args: -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows
             binary-suffix: .exe
             binary-dir: build/Release
           - os: macos-latest
             geos-install: brew install geos
-            cmake-args: -DCMAKE_BUILD_TYPE=Release
+            cmake-args: -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5
             binary-suffix: ""
             binary-dir: build
 
@@ -39,15 +39,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: recursive
           fetch-depth: 0
 
-      - name: Pin submodule tags
+      - name: Clone third-party dependencies
         shell: bash
         run: |
-          git submodule update --init --recursive
-          cd third_party/recastnavigation && git fetch --tags --depth 1 && git checkout ${{ env.RECAST_TAG }} && cd ../..
-          cd third_party/poly2tri && git fetch --tags --depth 1 && git checkout ${{ env.POLY2TRI_TAG }} && cd ../..
+          git clone --depth 1 --branch ${{ env.RECAST_TAG }} \
+            https://github.com/recastnavigation/recastnavigation.git \
+            third_party/recastnavigation
+          git clone --depth 1 --branch ${{ env.POLY2TRI_TAG }} \
+            https://github.com/jhasse/poly2tri.git \
+            third_party/poly2tri
 
       - name: Install GEOS
         run: ${{ matrix.geos-install }}
