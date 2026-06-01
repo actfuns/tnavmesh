@@ -13,6 +13,12 @@ enum class Quality {
     High
 };
 
+enum class PartitionType {
+    Watershed = 0,
+    Monotone = 1,
+    Layer = 2
+};
+
 struct NavmeshConfig {
     // 0 = auto-calculate from map info
     float cs = 0;
@@ -29,6 +35,7 @@ struct NavmeshConfig {
     float detailSampleDist = 6.0f;
     float detailSampleMaxError = 1.0f;
     Quality quality = Quality::Normal;
+    PartitionType partitionType = PartitionType::Watershed;
 
     void autoCalc(const MapInfo& mapInfo) {
         float tileW = mapInfo.tileWidth;
@@ -44,9 +51,9 @@ struct NavmeshConfig {
         if (cs <= 0) {
             float csFactor;
             switch (quality) {
-                case Quality::Low:    csFactor = 0.4f;  break;
-                case Quality::High:   csFactor = 0.1f;  break;
-                default:              csFactor = 0.15f; break;
+                case Quality::Low:    csFactor = 0.5f;  break;
+                case Quality::High:   csFactor = 0.125f; break;
+                default:              csFactor = 0.25f; break;
             }
             cs = tileSize * csFactor;
         }

@@ -13,7 +13,6 @@ int main(int argc, char** argv) {
     char** subArgv = argv + 1;  // subArgv[0] = command name
 
     if (cmd == "build")   return cmd_build(subArgc, subArgv);
-    if (cmd == "inspect") return cmd_inspect(subArgc, subArgv);
     if (cmd == "path")    return cmd_path(subArgc, subArgv);
     if (cmd == "--version") {
         std::cout << TNAVMESH_VERSION << "\n";

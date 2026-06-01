@@ -6,34 +6,13 @@
 #include <vector>
 #include <memory>
 
-#ifdef HAVE_GEOS
 #include <geos_c.h>
 #include <poly2tri.h>
-#endif
 
 // TMX y-down → Recast z-up
 static float tmxToRecastZ(float tmxY, float mapH) {
     return mapH - tmxY;
 }
-
-#ifdef HAVE_GEOS
-// Extract ring points from GEOS geometry
-static std::vector<float> geosRingPoints(const GEOSContextHandle_t& ctx,
-                                          const GEOSGeometry* ring) {
-    std::vector<float> pts;
-    const GEOSCoordSequence* seq = GEOSGeom_getCoordSeq_r(ctx, ring);
-    if (!seq) return pts;
-    unsigned int nPts = 0;
-    GEOSCoordSeq_getSize_r(ctx, seq, &nPts);
-    for (unsigned int i = 0; i < nPts - 1; i++) {
-        double x, y;
-        GEOSCoordSeq_getXY_r(ctx, seq, i, &x, &y);
-        pts.push_back((float)x);
-        pts.push_back((float)y);
-    }
-    return pts;
-}
-#endif
 
 // Remove consecutive duplicate points
 static std::vector<float> dedupPoints(const std::vector<float>& pts) {
@@ -51,10 +30,28 @@ static std::vector<float> dedupPoints(const std::vector<float>& pts) {
     return pts;
 }
 
+// Extract ring points from GEOS geometry
+static std::vector<float> geosRingPoints(const GEOSContextHandle_t& ctx,
+                                          const GEOSGeometry* ring) {
+    std::vector<float> pts;
+    const GEOSCoordSequence* seq = GEOSGeom_getCoordSeq_r(ctx, ring);
+    if (!seq) return pts;
+    unsigned int nPts = 0;
+    GEOSCoordSeq_getSize_r(ctx, seq, &nPts);
+    for (unsigned int i = 0; i < nPts - 1; i++) {
+        double x, y;
+        GEOSCoordSeq_getXY_r(ctx, seq, i, &x, &y);
+        pts.push_back((float)x);
+        pts.push_back((float)y);
+    }
+    return pts;
+}
+
 // Run the Recast pipeline
 static rcPolyMesh* runRecast(const rcConfig& config,
                               const std::vector<float>& verts,
-                              const std::vector<int>& tris) {
+                              const std::vector<int>& tris,
+                              PartitionType partition = PartitionType::Watershed) {
     rcContext ctx;
     rcHeightfield* hf = rcAllocHeightfield();
     if (!hf || !rcCreateHeightfield(&ctx, *hf, config.width, config.height,
@@ -82,12 +79,26 @@ static rcPolyMesh* runRecast(const rcConfig& config,
     rcFreeHeightField(hf);
 
     rcErodeWalkableArea(&ctx, config.walkableRadius, *chf);
-    if (!rcBuildDistanceField(&ctx, *chf)) {
-        std::cerr << "Error: rcBuildDistanceField failed.\n";
-        rcFreeCompactHeightfield(chf);
-        return nullptr;
+
+    // Build regions using the selected partitioning method
+    bool regionsOk = false;
+    switch (partition) {
+        case PartitionType::Monotone:
+            regionsOk = rcBuildRegionsMonotone(&ctx, *chf, 0, config.minRegionArea, config.mergeRegionArea);
+            break;
+        case PartitionType::Layer:
+            regionsOk = rcBuildLayerRegions(&ctx, *chf, 0, config.minRegionArea);
+            break;
+        default: // Watershed
+            if (!rcBuildDistanceField(&ctx, *chf)) {
+                std::cerr << "Error: rcBuildDistanceField failed.\n";
+                rcFreeCompactHeightfield(chf);
+                return nullptr;
+            }
+            regionsOk = rcBuildRegions(&ctx, *chf, 0, config.minRegionArea, config.mergeRegionArea);
+            break;
     }
-    if (!rcBuildRegions(&ctx, *chf, 0, config.minRegionArea, config.mergeRegionArea)) {
+    if (!regionsOk) {
         std::cerr << "Error: rcBuildRegions failed.\n";
         rcFreeCompactHeightfield(chf);
         return nullptr;
@@ -116,19 +127,18 @@ static rcPolyMesh* runRecast(const rcConfig& config,
     return pmesh;
 }
 
-#ifdef HAVE_GEOS
-
 rcPolyMesh* buildNavMesh(const MapInfo& mapInfo,
                           const std::vector<MergedRegion>& regions,
                           const NavmeshConfig& config) {
     float mapW = static_cast<float>(mapInfo.width) * mapInfo.tileWidth;
     float mapH = static_cast<float>(mapInfo.height) * mapInfo.tileHeight;
     rcConfig cfg = config.toRcConfig(mapW, mapH);
+    PartitionType part = config.partitionType;
 
     if (regions.empty()) {
         std::vector<float> verts = { 0,0,mapH, mapW,0,mapH, mapW,0,0, 0,0,0 };
         std::vector<int> tris = { 0,1,2, 0,2,3 };
-        return runRecast(cfg, verts, tris);
+        return runRecast(cfg, verts, tris, part);
     }
 
     // Step 1: GEOS Difference (map - obstacles)
@@ -170,13 +180,13 @@ rcPolyMesh* buildNavMesh(const MapInfo& mapInfo,
     GEOSGeometry* mapRing = GEOSGeom_createLinearRing_r(geosCtx, mapSeq);
     if (!mapRing) {
         for (auto* g : obsGeoms) GEOSGeom_destroy_r(geosCtx, g);
-        GEOS_finish_r(geosCtx); return runRecast(cfg, {}, {});
+        GEOS_finish_r(geosCtx); return runRecast(cfg, {}, {}, part);
     }
     GEOSGeometry* mapPoly = GEOSGeom_createPolygon_r(geosCtx, mapRing, nullptr, 0);
     if (!mapPoly) {
         GEOSGeom_destroy_r(geosCtx, mapRing);
         for (auto* g : obsGeoms) GEOSGeom_destroy_r(geosCtx, g);
-        GEOS_finish_r(geosCtx); return runRecast(cfg, {}, {});
+        GEOS_finish_r(geosCtx); return runRecast(cfg, {}, {}, part);
     }
 
     // Union obstacles
@@ -204,7 +214,7 @@ rcPolyMesh* buildNavMesh(const MapInfo& mapInfo,
     if (!walkableGeo || GEOSisEmpty_r(geosCtx, walkableGeo) == 1) {
         if (walkableGeo) GEOSGeom_destroy_r(geosCtx, walkableGeo);
         GEOS_finish_r(geosCtx);
-        return runRecast(cfg, {}, {});
+        return runRecast(cfg, {}, {}, part);
     }
 
     // Step 2: Triangulate walkable polygons with poly2tri
@@ -287,26 +297,7 @@ rcPolyMesh* buildNavMesh(const MapInfo& mapInfo,
     GEOSGeom_destroy_r(geosCtx, walkableGeo);
     GEOS_finish_r(geosCtx);
 
-    if (tris.empty()) return runRecast(cfg, {}, {});
+    if (tris.empty()) return runRecast(cfg, {}, {}, part);
 
-    return runRecast(cfg, verts, tris);
+    return runRecast(cfg, verts, tris, part);
 }
-
-#else // !HAVE_GEOS — stub: build flat navmesh for the whole map
-
-rcPolyMesh* buildNavMesh(const MapInfo& mapInfo,
-                          const std::vector<MergedRegion>& /*regions*/,
-                          const NavmeshConfig& config) {
-    float mapW = static_cast<float>(mapInfo.width) * mapInfo.tileWidth;
-    float mapH = static_cast<float>(mapInfo.height) * mapInfo.tileHeight;
-    rcConfig cfg = config.toRcConfig(mapW, mapH);
-
-    std::cerr << "Warning: GEOS not available — building navmesh for full map area.\n";
-
-    // Full map as a flat quad
-    std::vector<float> verts = { 0,0,mapH, mapW,0,mapH, mapW,0,0, 0,0,0 };
-    std::vector<int> tris = { 0,1,2, 0,2,3 };
-    return runRecast(cfg, verts, tris);
-}
-
-#endif

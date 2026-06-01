@@ -1,7 +1,5 @@
 #include "tnavmesh/geos_utils.h"
 #include <iostream>
-
-#ifdef HAVE_GEOS
 #include <geos_c.h>
 #include <vector>
 
@@ -283,25 +281,3 @@ std::vector<Obstacle> computeOverlaps(const std::vector<Obstacle>& obstacles) {
     destroyGEOS(ctx);
     return result;
 }
-
-#else // !HAVE_GEOS — stub implementations
-
-std::vector<MergedRegion> mergeObstacles(const std::vector<Obstacle>& obstacles,
-                                          float /*mapWidth*/, float /*mapHeight*/) {
-    // Without GEOS, just return each obstacle as its own region (no actual merging)
-    std::cerr << "Warning: GEOS not available — obstacle merging disabled.\n";
-    std::vector<MergedRegion> result;
-    for (const auto& obs : obstacles) {
-        MergedRegion r;
-        r.exterior = obs;
-        result.push_back(std::move(r));
-    }
-    return result;
-}
-
-std::vector<Obstacle> computeOverlaps(const std::vector<Obstacle>& /*obstacles*/) {
-    std::cerr << "Warning: GEOS not available — overlap computation disabled.\n";
-    return {};
-}
-
-#endif

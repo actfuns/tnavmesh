@@ -17,11 +17,9 @@ struct SvgOptions {
     int svgWidth = 0;
     int svgHeight = 0;
 
-    // Debug mode options
-    bool debug = false;
-    bool showOverlaps = true;
-    bool showTriangulation = false;
+    bool showOverlaps = false;
     bool showAnnotations = false;
+    bool showLegend = true;
 };
 
 // Write SVG with layer control.

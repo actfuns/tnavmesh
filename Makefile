@@ -30,6 +30,7 @@ clone: third_party/recastnavigation third_party/poly2tri
 
 build: clone
 	$(CMAKE) -S . -B $(BUILD_DIR) $(CMAKE_ARGS)
+	$(CMAKE) --build $(BUILD_DIR)
 
 clean:
 	rm -rf $(BUILD_DIR)

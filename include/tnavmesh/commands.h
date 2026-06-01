@@ -5,7 +5,6 @@
 // Returns exit code (0=success, 1=build error, 2=input error).
 
 int cmd_build(int argc, char** argv);
-int cmd_inspect(int argc, char** argv);
 int cmd_path(int argc, char** argv);
 
 void printUsage();

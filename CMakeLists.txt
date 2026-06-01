@@ -29,7 +29,7 @@ set(POLY2TRI_SOURCES
 )
 
 # -------------------------------------------------------------------
-# GEOS — optional dependency
+# GEOS — required dependency
 # -------------------------------------------------------------------
 # Strategy: try vcpkg CMake config first (Windows), then pkg-config / find_path (Linux/macOS)
 find_package(geos CONFIG QUIET)
@@ -56,13 +56,13 @@ if(NOT geos_FOUND)
 endif()
 
 if(geos_FOUND)
-  add_compile_definitions(HAVE_GEOS)
   message(STATUS "GEOS found via CMake config: ${geos_VERSION}")
 elseif(GEOS_FOUND)
-  add_compile_definitions(HAVE_GEOS)
   message(STATUS "GEOS found: ${GEOS_VERSION}")
 else()
-  message(WARNING "GEOS not found — building with stubs. Inspect overlaps and full pipeline will be unavailable.")
+  message(FATAL_ERROR "GEOS not found! GEOS is required to build tnavmesh. "
+                      "Install it via: sudo apt install libgeos-dev (Linux) "
+                      "or vcpkg install geos (Windows).")
 endif()
 
 # -------------------------------------------------------------------

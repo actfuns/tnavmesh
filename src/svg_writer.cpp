@@ -54,8 +54,7 @@ void writeSVG(const std::string& path,
            "  .path-end { fill: #f00; }\n"
            "  .overlap { fill: rgba(255,165,0,0.45); stroke: #f60; stroke-width: 2; stroke-dasharray: 6,3; }\n"
            "  .tri { stroke: rgba(100,100,100,0.4); stroke-width: 0.5; }\n"
-           "  .annot { font-family: monospace; font-size: 9px; fill: #666; }\n"
-           "  .legend-text { font-family: monospace; font-size: 12px; }\n"
+           "  .annot { font-family: monospace; font-size: 12px; fill: #333; font-weight: bold; }\n"
            "</style>\n";
 
     svg += "<rect class=\"bg\" x=\"0\" y=\"0\" width=\"" + std::to_string(mapW) + "\" height=\"" + std::to_string(mapH) + "\"/>\n";
@@ -84,7 +83,7 @@ void writeSVG(const std::string& path,
         for (const auto& obs : obstacles) {
             if (obs.points.size() < 6) continue; // need at least 3 pts for a polygon
             svg += "<polygon points=\"" + pts(obs.points) + "\"/>";
-            if (options.debug && obs.id > 0) {
+            if (obs.id > 0) {
                 float cx = 0, cy = 0;
                 for (size_t i = 0; i < obs.points.size() / 2; i++) {
                     cx += obs.points[i*2];
@@ -104,8 +103,8 @@ void writeSVG(const std::string& path,
         svg += "</g>\n";
     }
 
-    // Overlap regions (debug)
-    if (options.debug && options.showOverlaps && !overlaps.empty()) {
+    // Overlap regions
+    if (options.showOverlaps && !overlaps.empty()) {
         svg += "<g class=\"overlap\">\n";
         for (const auto& o : overlaps)
             svg += "<polygon points=\"" + pts(o.points) + "\"/>\n";
@@ -124,36 +123,6 @@ void writeSVG(const std::string& path,
             for (const auto& hole : region.holes)
                 if (hole.points.size() >= 6)
                     svg += "<polygon points=\"" + pts(hole.points) + "\"/>\n";
-        svg += "</g>\n";
-    }
-
-    // Triangulation edges (debug)
-    if (options.debug && options.showTriangulation && mesh && mesh->npolys > 0) {
-        svg += "<g class=\"tri\">\n";
-        unsigned short* verts = mesh->verts;
-        unsigned short* polys = mesh->polys;
-        for (int i = 0; i < mesh->npolys; i++) {
-            // Collect vertices of this poly
-            std::vector<float> polyVerts;
-            for (int j = 0; j < mesh->nvp; j++) {
-                int vi = polys[i * mesh->nvp * 2 + j];
-                if (vi == RC_MESH_NULL_IDX) break;
-                float rx = verts[vi * 3 + 0] * mesh->cs + mesh->bmin[0];
-                float ry = verts[vi * 3 + 2] * mesh->cs + mesh->bmin[2];
-                polyVerts.push_back(rx);
-                polyVerts.push_back(mapH - ry);
-            }
-            // Draw edges for triangulated display
-            int n = (int)polyVerts.size() / 2;
-            for (int j = 0; j < n; j++) {
-                int nj = (j + 1) % n;
-                char buf[256];
-                std::snprintf(buf, sizeof(buf), "<line x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\"/>\n",
-                    polyVerts[j*2], polyVerts[j*2+1],
-                    polyVerts[nj*2], polyVerts[nj*2+1]);
-                svg += buf;
-            }
-        }
         svg += "</g>\n";
     }
 
@@ -180,13 +149,13 @@ void writeSVG(const std::string& path,
         svg += "</g>\n";
     }
 
-    // Coordinate annotations (debug)
-    if (options.debug && options.showAnnotations && !annotations.empty()) {
+    // Coordinate annotations
+    if (options.showAnnotations && !annotations.empty()) {
         svg += "<g class=\"annot\">\n";
         for (size_t i = 0; i < annotations.size() / 2; i++) {
             char buf[256];
             std::snprintf(buf, sizeof(buf),
-                "<text x=\"%.1f\" y=\"%.1f\">(%.0f, %.0f)</text>\n",
+                "<text x=\"%.1f\" y=\"%.1f\" paint-order=\"stroke\" stroke=\"white\" stroke-width=\"3\">(%.0f, %.0f)</text>\n",
                 annotations[i*2] + 3, annotations[i*2+1] - 3,
                 annotations[i*2], annotations[i*2+1]);
             svg += buf;
@@ -225,17 +194,42 @@ void writeSVG(const std::string& path,
     }
 
     // Legend
-    svg += "<g transform=\"translate(10,20)\" class=\"legend-text\">\n"
-           "<rect x=\"0\" y=\"-12\" width=\"12\" height=\"12\" fill=\"rgba(255,0,0,0.3)\" stroke=\"red\" stroke-width=\"1\"/>"
-           "<text x=\"18\" y=\"0\">Obstacle</text>\n"
-           "<rect x=\"0\" y=\"4\" width=\"12\" height=\"12\" fill=\"none\" stroke=\"#06f\" stroke-width=\"2.5\"/>"
-           "<text x=\"18\" y=\"16\">Merged</text>\n"
-           "<rect x=\"0\" y=\"20\" width=\"12\" height=\"12\" fill=\"rgba(0,200,0,0.35)\" stroke=\"#080\" stroke-width=\"1\"/>"
-           "<text x=\"18\" y=\"32\">NavMesh</text>\n";
-    if (options.debug && options.showOverlaps && !overlaps.empty())
-        svg += "<rect x=\"0\" y=\"36\" width=\"12\" height=\"12\" fill=\"rgba(255,165,0,0.45)\" stroke=\"#f60\" stroke-width=\"2\"/>"
-               "<text x=\"18\" y=\"48\">Overlap</text>\n";
-    svg += "</g>\n";
+    if (options.showLegend) {
+        float legScale = std::min(mapW, mapH) / 800.0f;
+        if (legScale < 1.0f) legScale = 1.0f;
+        float legFont = 12.0f * legScale;
+        float legSize = 12.0f * legScale;
+        float legStroke = std::min(legScale, 3.0f);
+        int dx = (int)(10 * legScale);
+        int dy = (int)(20 * legScale);
+        char leg[1024];
+        std::snprintf(leg, sizeof(leg),
+            "<g transform=\"translate(%d,%d)\" font-family=\"monospace\" font-size=\"%.1f\">\n"
+            "<rect x=\"0\" y=\"%.1f\" width=\"%.1f\" height=\"%.1f\" fill=\"rgba(255,0,0,0.3)\" stroke=\"red\" stroke-width=\"%.1f\"/>"
+            "<text x=\"%.1f\" y=\"0\">Obstacle</text>\n"
+            "<rect x=\"0\" y=\"%.1f\" width=\"%.1f\" height=\"%.1f\" fill=\"none\" stroke=\"#06f\" stroke-width=\"%.1f\"/>"
+            "<text x=\"%.1f\" y=\"%.1f\">Merged</text>\n"
+            "<rect x=\"0\" y=\"%.1f\" width=\"%.1f\" height=\"%.1f\" fill=\"rgba(0,200,0,0.35)\" stroke=\"#080\" stroke-width=\"%.1f\"/>"
+            "<text x=\"%.1f\" y=\"%.1f\">NavMesh</text>\n",
+            dx, dy, legFont,
+            -legSize * 0.9f, legSize, legSize, legStroke,
+            legSize * 1.5f,
+            legSize * 0.3f, legSize, legSize, legStroke,
+            legSize * 1.5f, legSize + legSize * 0.3f,
+            legSize * 1.3f, legSize, legSize, legStroke,
+            legSize * 1.5f, legSize * 2 + legSize * 0.3f);
+        svg += leg;
+        if (options.showOverlaps && !overlaps.empty()) {
+            char buf[256];
+            std::snprintf(buf, sizeof(buf),
+                "<rect x=\"0\" y=\"%.1f\" width=\"%.1f\" height=\"%.1f\" fill=\"rgba(255,165,0,0.45)\" stroke=\"#f60\" stroke-width=\"%.1f\"/>"
+                "<text x=\"%.1f\" y=\"%.1f\">Overlap</text>\n",
+                legSize * 2.7f, legSize, legSize, legStroke,
+                legSize * 1.5f, legSize * 3 + legSize * 0.3f);
+            svg += buf;
+        }
+        svg += "</g>\n";
+    }
 
     svg += "</svg>\n";
 
