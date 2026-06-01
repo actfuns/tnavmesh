@@ -39,8 +39,13 @@ bash test/smoke.sh
 tnavmesh <command> [options]
 
 Commands:
-  build     Generate navigation mesh from TMX
-  path      Compute or render navigation paths
+  build              Generate navigation mesh from TMX
+  query path         Find path between two points
+  query nearest      Find nearest point on navmesh
+  query random       Generate random points on navmesh
+  query raycast      Test straight-line reachability
+  render             Render waypoints to SVG
+  inspect            View navmesh information
 ```
 
 ### build
@@ -75,25 +80,89 @@ tnavmesh build -i map.tmx -o map.bin [options]
 | `--svg-height <n>` | SVG output height in px (default: 1200) |
 | `-v, --verbose` | Verbose output |
 
-### path
+### query path
 
 ```bash
-tnavmesh path -n map.bin -s 32 32 -e 288 288          # Runtime mode
-tnavmesh path --draw waypoints.txt --output-svg out.svg  # Draw mode
+tnavmesh query path -n navmesh.bin --start 32 32 --end 288 288
 ```
 
 | Option | Description |
 |--------|-------------|
-| `-n, --navmesh <file.bin>` | Pre-built navmesh (runtime query) |
-| `--draw <file.txt>` | Render precomputed path (no navmesh) |
-| `-s, --start <x> <y>` | Start point |
-| `-e, --end <x> <y>` | End point |
-| `--auto` | Auto-generate start/end points |
-| `--output-svg <file>` | Output SVG (default: path.svg) |
-| `--text-output <file>` | Save waypoints as text |
-| `--format` | `svg` \| `json` \| `text` (default: svg) |
-| `--visual` | `simple` \| `full` \| `debug` (default: full) |
-| `-v, --verbose` | Verbose output |
+| `-n, --navmesh <file>` | Pre-built navmesh (.bin, required) |
+| `--start <x> <y>` | Start point (required) |
+| `--end <x> <y>` | End point (required) |
+| `-o, --output <file>` | Output file (format inferred from extension) |
+| `--format <fmt>` | `text` \| `json` \| `svg` (default: text) |
+| `--debug` | Show detailed path info and all waypoints |
+
+Exit codes: `0` success, `1` path not found, `2` invalid arguments, `3` navmesh load failed.
+
+### query nearest
+
+```bash
+tnavmesh query nearest -n navmesh.bin --pos 500 500
+```
+
+| Option | Description |
+|--------|-------------|
+| `-n, --navmesh <file>` | Pre-built navmesh (.bin, required) |
+| `--pos <x> <y>` | Query point (required) |
+| `--format <fmt>` | `text` \| `json` (default: text) |
+
+### query random
+
+```bash
+tnavmesh query random -n navmesh.bin --count 5
+```
+
+| Option | Description |
+|--------|-------------|
+| `-n, --navmesh <file>` | Pre-built navmesh (.bin, required) |
+| `--count <n>` | Number of random points (default: 1) |
+| `--seed <n>` | RNG seed |
+| `--minx <x> --maxx <x>` | X range filter |
+| `--miny <y> --maxy <y>` | Y range filter |
+| `--format <fmt>` | `text` \| `json` (default: text) |
+
+### query raycast
+
+```bash
+tnavmesh query raycast -n navmesh.bin --start 32 32 --end 288 288
+```
+
+| Option | Description |
+|--------|-------------|
+| `-n, --navmesh <file>` | Pre-built navmesh (.bin, required) |
+| `--start <x> <y>` | Start point (required) |
+| `--end <x> <y>` | End point (required) |
+| `--format <fmt>` | `text` \| `json` (default: text) |
+
+### render
+
+```bash
+tnavmesh render -i waypoints.txt -o out.svg
+tnavmesh render --points "5000,2000 10000,12000" -o out.svg
+```
+
+| Option | Description |
+|--------|-------------|
+| `-i, --input <file>` | Read waypoints from txt/json file |
+| `--points "<x,y x,y ...>"` | Inline waypoints |
+| `-o, --output <file>` | Output file (default: render.svg) |
+| `--format <fmt>` | `svg` (default) |
+| `--visual <level>` | `simple` \| `full` \| `debug` (default: full) |
+
+### inspect
+
+```bash
+tnavmesh inspect -n navmesh.bin
+```
+
+| Option | Description |
+|--------|-------------|
+| `-n, --navmesh <file>` | Pre-built navmesh (.bin, required) |
+| `-o, --output <file.svg>` | Export navmesh visualization |
+| `-v, --verbose` | Show detailed config |
 
 ## Build Dependencies
 

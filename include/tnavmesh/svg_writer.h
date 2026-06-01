@@ -20,6 +20,7 @@ struct SvgOptions {
     bool showOverlaps = false;
     bool showAnnotations = false;
     bool showLegend = true;
+    bool tmxCoords = false;   // true = input coords already in TMX y-down (skip y-flip)
 };
 
 // Write SVG with layer control.

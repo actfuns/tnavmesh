@@ -179,16 +179,20 @@ void writeSVG(const std::string& path,
         if (pathPts.size() >= 4) {
             float sx = pathPts[0], sy = pathPts[1];
             float ex = pathPts[pathPts.size()-2], ey = pathPts[pathPts.size()-1];
+            float diag = std::sqrt(mapW * mapW + mapH * mapH);
+            float r = std::max(4.0f, diag / 400.0f);
+            float fontSize = std::max(9.0f, diag / 180.0f);
+            float offset = r + 4;
             char buf[256];
             std::snprintf(buf, sizeof(buf),
-                "<circle class=\"path-start\" cx=\"%.1f\" cy=\"%.1f\" r=\"5\"/>\n"
-                "<text x=\"%.1f\" y=\"%.1f\" font-family=\"monospace\" font-size=\"11\" fill=\"#0a0\">Start</text>\n",
-                sx, sy, sx + 8, sy - 8);
+                "<circle class=\"path-start\" cx=\"%.1f\" cy=\"%.1f\" r=\"%.1f\"/>\n"
+                "<text x=\"%.1f\" y=\"%.1f\" font-family=\"monospace\" font-size=\"%.1f\" fill=\"#0a0\">Start</text>\n",
+                sx, sy, r, sx + offset, sy - offset * 0.6f, fontSize);
             svg += buf;
             std::snprintf(buf, sizeof(buf),
-                "<rect class=\"path-end\" x=\"%.1f\" y=\"%.1f\" width=\"8\" height=\"8\" rx=\"1\"/>\n"
-                "<text x=\"%.1f\" y=\"%.1f\" font-family=\"monospace\" font-size=\"11\" fill=\"#f00\">End</text>\n",
-                ex - 4, ey - 4, ex + 8, ey + 12);
+                "<rect class=\"path-end\" x=\"%.1f\" y=\"%.1f\" width=\"%.1f\" height=\"%.1f\" rx=\"1\"/>\n"
+                "<text x=\"%.1f\" y=\"%.1f\" font-family=\"monospace\" font-size=\"%.1f\" fill=\"#f00\">End</text>\n",
+                ex - r * 0.5f, ey - r * 0.5f, r, r, ex + offset, ey + offset * 0.4f, fontSize);
             svg += buf;
         }
     }
