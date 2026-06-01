@@ -606,10 +606,9 @@ int cmd_path(int argc, char** argv) {
             rtMap.tileHeight = maxY - minY + pad * 2;
 
             SvgOptions rtOpt;
-            rtOpt.showGrid = false;
-            rtOpt.showObstacles = false;
-            rtOpt.showMerged = false;
-            rtOpt.showNavmesh = false;
+            rtOpt.svgWidth = 1200;
+            rtOpt.svgHeight = 1200;
+            rtOpt.showNavmesh = true;
             rtOpt.showPath = true;
 
             writeSVG(outputSvg, rtMap, {}, {}, nullptr, rtOpt, result.waypoints);
