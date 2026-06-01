@@ -28,6 +28,11 @@ set(POLY2TRI_SOURCES
   ${POLY2TRI_DIR}/sweep/sweep_context.cc
 )
 
+# poly2tri defaults to __declspec(dllimport) on Windows when no define is set.
+# Since we compile the sources directly, define P2T_STATIC_EXPORTS to make all
+# P2T_DLL_SYMBOL macros expand to nothing.
+add_definitions(-DP2T_STATIC_EXPORTS)
+
 # -------------------------------------------------------------------
 # GEOS — required dependency
 # -------------------------------------------------------------------
