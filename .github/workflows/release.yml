@@ -85,7 +85,11 @@ jobs:
           cp LICENSE README.md package/ 2>/dev/null || true
           cp "${{ matrix.binary-dir }}/tnavmesh${{ matrix.binary-suffix }}" package/
           cd package
-          zip -r ../tnavmesh-${ASET}.zip .
+          if command -v zip &>/dev/null; then
+            zip -r "../tnavmesh-${ASET}.zip" .
+          else
+            7z a -tzip "../tnavmesh-${ASET}.zip" .
+          fi
 
       - name: Upload
         uses: actions/upload-artifact@v4
